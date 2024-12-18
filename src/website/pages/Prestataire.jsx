@@ -3,7 +3,7 @@ import logo from "../../assets/logo.png";
 const Prestataire = () => {
   return (
     <div className=" relative flex  ">
-      <div className="leftside flex flex-col w-1/4 gap-10 bg-purple h-screen rounded-tr-3xl rounded-br-3xl">
+      <div className="leftside flex flex-col w-1/4 gap-10 bg-purple min-h-screen rounded-tr-3xl rounded-br-3xl">
         <div
           className="logo w-32 h-32 rounded-xl cursor-pointer"
           onClick={() => {

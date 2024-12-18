@@ -17,9 +17,10 @@
 
 @layer base {
   .btn_purple2 {
-    background-color: theme('colors.purple'); 
+    background-color: theme('colors.purple2'); 
     padding:10px ;
     color: #fff;
     border-radius : 10px;
   }
 }
+
