@@ -26,7 +26,7 @@ class Prestataire(User):
     prix = models.DecimalField(max_digits=10, decimal_places=2)  # Exemple de champ prix
 
 class Event(models.Model):
-    prestataire = models.ForeignKey(User, related_name='events', on_delete=models.CASCADE)
+    prestataire = models.ForeignKey(Prestataire, related_name='events', on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     description = models.TextField()
     photos = models.ManyToManyField('EventPhoto', related_name='events')  # Relier aux photos d'événements 
@@ -44,18 +44,46 @@ class EventPhoto(models.Model):
     
 
 class Availability(models.Model):
-    prestataire = models.ForeignKey(User, related_name='availabilities', on_delete=models.CASCADE)
+    prestataire = models.ForeignKey(Prestataire, related_name='availabilities', on_delete=models.CASCADE)
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
 
     def __str__(self):
         return f"{self.start_date} - {self.end_date}"
+    
+class EventReservation(models.Model):
+    availability = models.ForeignKey(Availability, related_name='reservations', on_delete=models.CASCADE)
+    reserved_by = models.ForeignKey(User, related_name='reservations', on_delete=models.CASCADE)
+    reserved_date = models.DateField(null=True, blank=True)  # Pour une date précise
+    start_time = models.DateTimeField(null=True, blank=True)  # Début de l'intervalle
+    end_time = models.DateTimeField(null=True, blank=True)  # Fin de l'intervalle
+    reserved_on = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Reservation for {self.event.name} by {self.reserved_by.name}"
+
+    def is_available(self):
+        """
+        Vérifie si la date ou l'intervalle est disponible.
+        """
+        reservations = EventReservation.objects.filter(availability=self.availability)
+
+        if self.reserved_date:
+            return not reservations.filter(reserved_date=self.reserved_date).exists()
+        elif self.start_time and self.end_time:
+            return not reservations.filter(
+                start_time__lt=self.end_time,
+                end_time__gt=self.start_time
+            ).exists()
+        return True
+
+
 
 class Rating(models.Model):
     user = models.ForeignKey(User, related_name='ratings', on_delete=models.CASCADE)
     event = models.ForeignKey(Event, related_name='ratings', on_delete=models.CASCADE)
     rating = models.IntegerField(choices=[(1, '1 étoile'), (2, '2 étoiles'), (3, '3 étoiles'), (4, '4 étoiles'), (5, '5 étoiles')])
-    review = models.TextField()
+    feedback = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -64,9 +92,22 @@ class Rating(models.Model):
 class Cart(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="cart")
     prestataires = models.ManyToManyField(Prestataire, related_name="carts", blank=True)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
-    def total_price(self):
-        return sum(prestataire.prix for prestataire in self.prestataires.all())    
+    def update_total_price(self):
+        self.total_price = sum(prestataire.prix for prestataire in self.prestataires.all())
+        self.save()
+
+    def reset_total_price(self):
+        """
+        Réinitialise le total_price à 0 après un paiement.
+        """
+        self.total_price = 0.00
+        self.save()
+    
+    
+    def __str__(self):
+        return f"Cart of {self.user.username} - Total Price: {self.total_price}"
     
 class Payment(models.Model):
     PAYMENT_METHODS = [
@@ -75,8 +116,8 @@ class Payment(models.Model):
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="payments")
-    cart = models.OneToOneField(Cart, on_delete=models.CASCADE)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
     method = models.CharField(choices=PAYMENT_METHODS, max_length=3)
     timestamp = models.DateTimeField(auto_now_add=True)
     success = models.BooleanField(default=False)

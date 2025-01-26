@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User , Prestataire , Event , EventPhoto , Availability , Rating , Cart , Payment  , ChecklistItem , Task , DevisRequest , Notification
+from .models import User , Prestataire , Event , EventPhoto , Availability , Rating , Cart , Payment  , ChecklistItem , Task , DevisRequest , Notification , EventReservation
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -54,23 +54,46 @@ class AvailabilitySerializer(serializers.ModelSerializer):
         model = Availability
         fields = ['id', 'start_date', 'end_date']
 
+class EventReservationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventReservation
+        fields = ['id', 'availability', 'reserved_by', 'reserved_date', 'start_time', 'end_time', 'reserved_on']
+
+    def validate(self, data):
+        """
+        Validation des dates et de la disponibilité.
+        """
+        availability = data.get('availability')
+        reserved_date = data.get('reserved_date')
+        start_time = data.get('start_time')
+        end_time = data.get('end_time')
+
+        if not reserved_date and not (start_time and end_time):
+            raise serializers.ValidationError("Vous devez fournir une date ou un intervalle de temps.")
+
+        # Vérifier si la réservation est dans les disponibilités du prestataire
+        if reserved_date:
+            if not (availability.start_date.date() <= reserved_date <= availability.end_date.date()):
+                raise serializers.ValidationError("La date de réservation est en dehors des disponibilités.")
+        elif start_time and end_time:
+            if start_time < availability.start_date or end_time > availability.end_date:
+                raise serializers.ValidationError("L'intervalle de réservation est en dehors des disponibilités.")
+
+        return data
+
 
 class RatingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rating
-        fields = ['user', 'rating', 'review', 'created_at']    
+        fields = ['user', 'rating', 'feedback', 'created_at']    
 
 
 class CartSerializer(serializers.ModelSerializer):
     prestataires = PrestataireSerializer(many=True, read_only=True)
-    total_price = serializers.SerializerMethodField()
-
     class Meta:
         model = Cart
         fields = ['id', 'prestataires', 'total_price']
 
-    def get_total_price(self, obj):
-        return obj.total_price()
 
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:

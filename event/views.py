@@ -1,8 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import AuthenticationFailed
-from .serializers import UserSerializer , PrestataireSerializer , EventSerializer, RatingSerializer, EventPhotoSerializer,AvailabilitySerializer , CartSerializer , PaymentSerializer , ChecklistItemSerializer , TaskSerializer , DevisRequestSerializer,NotificationSerializer
-from .models import User , Prestataire , Event, Rating , Availability , Cart , Payment , ChecklistItem , Task , DevisRequest , Notification
+from .serializers import UserSerializer , PrestataireSerializer , EventSerializer, RatingSerializer, EventPhotoSerializer,AvailabilitySerializer , CartSerializer , PaymentSerializer , ChecklistItemSerializer , TaskSerializer , DevisRequestSerializer,NotificationSerializer , EventReservationSerializer
+from .models import User , Prestataire , Event, Rating , Availability , Cart , Payment , ChecklistItem , Task , DevisRequest , Notification , EventReservation
 from rest_framework.permissions import IsAuthenticated , AllowAny
 import jwt, datetime
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -63,7 +63,30 @@ class LoginView(APIView):
             'jwt': token
         }
         return response
-    
+class ProfileView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        # Récupérer le paramètre 'service' depuis kwargs
+        service = kwargs.get('service')
+
+        if service:
+            # Filtrer les prestataires en fonction du service
+            if service in ['photographe', 'salle', 'cuisinier', 'decor']:
+                prestataires = Prestataire.objects.filter(service=service)
+            else:
+                return Response({"error": "Service non valide"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Si aucun service n'est spécifié, retourner tous les prestataires
+            prestataires = Prestataire.objects.all()
+
+        # Sérialisation des données
+        prestataire_serializer = PrestataireSerializer(prestataires, many=True)
+
+        # Retourner les prestataires filtrés
+        return Response({
+            'prestataires': prestataire_serializer.data
+        })   
 class UserView(APIView):   
     def get(self,request):
         token = request.COOKIES.get('jwt')
@@ -88,26 +111,9 @@ class LogoutView(APIView):
         }
         return response
 
-class HelloWorldView(APIView):
-    def get(self, request):
-        # Vérifier si le token JWT est présent dans les cookies
-        token = request.COOKIES.get('jwt')
-        if not token:
-            raise AuthenticationFailed('Unauthenticated')
-
-        try:
-            # Décoder le token
-            payload = jwt.decode(token, 'secret', algorithms=['HS256'])
-        except jwt.ExpiredSignatureError:
-            raise AuthenticationFailed('Token expired. Please log in again.')
-        except jwt.DecodeError:
-            raise AuthenticationFailed('Invalid token.')
-
-        # Si le token est valide, afficher le message
-        return Response({'message': 'Hello, World!'})
-
+# afficher d'apres les categories
 class ProfileView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         user = request.user
@@ -119,14 +125,20 @@ class ProfileView(APIView):
         ratings = Rating.objects.filter(event__prestataire=user)
         rating_serializer = RatingSerializer(ratings, many=True)
 
+        availability = Availability.objects.filter(event__prestataire=user)
+        availability_serializer = AvailabilitySerializer(availability, many=True)
+
+
         return Response({
             'user': user_serializer.data,
             'events': event_serializer.data,
-            'ratings': rating_serializer.data
+            'ratings': rating_serializer.data,
+            'availability': availability_serializer.data,
+
         })
 
 class UpdateProfileView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def put(self, request):
         user = request.user
@@ -181,7 +193,7 @@ class EventView(APIView):
             return Response({"error": "Événement non trouvé."}, status=status.HTTP_404_NOT_FOUND)
         
 class EventPhotoView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     parser_classes = [MultiPartParser, FormParser]  # Permet de traiter les fichiers multipart/form-data
 
@@ -208,6 +220,30 @@ class AvailabilityView(APIView):
         serializer = AvailabilitySerializer(availabilities, many=True)
         return Response(serializer.data)
 
+class EventReservationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = EventReservationSerializer(data=request.data)
+        if serializer.is_valid():
+            # Vérifier la disponibilité
+            reservation = EventReservation(
+                event=serializer.validated_data['event'],
+                availability=serializer.validated_data['availability'],
+                reserved_by=request.user,
+                reserved_date=serializer.validated_data.get('reserved_date'),
+                start_time=serializer.validated_data.get('start_time'),
+                end_time=serializer.validated_data.get('end_time')
+            )
+
+            if not reservation.is_available():
+                return Response({"error": "La date ou l'intervalle est déjà réservé."}, status=400)
+
+            reservation.save()
+            return Response(EventReservationSerializer(reservation).data, status=201)
+        return Response(serializer.errors, status=400)
+
+
 
 class RatingView(APIView):
     permission_classes = [IsAuthenticated]  # Assurez-vous que l'utilisateur est authentifié
@@ -223,7 +259,7 @@ class RatingView(APIView):
         if existing_rating:
             # Si une notation existe déjà, on la met à jour
             existing_rating.rating = request.data.get('rating')
-            existing_rating.review = request.data.get('review')
+            existing_rating.feedback = request.data.get('feedback')
             existing_rating.save()
             return Response({
                 "message": "Évaluation mise à jour avec succès",
@@ -272,6 +308,7 @@ class CartView(APIView):
 
         cart, _ = Cart.objects.get_or_create(user=request.user)
         cart.prestataires.add(prestataire)
+        cart.update_total_price()  # Recalcule le total après ajout
         return Response({"message": "Prestataire added to cart."})
 
     def delete(self, request):
@@ -286,9 +323,9 @@ class CartView(APIView):
 
         cart, _ = Cart.objects.get_or_create(user=request.user)
         cart.prestataires.remove(prestataire)
+        cart.update_total_price()  # Recalcule le total après suppression
         return Response({"message": "Prestataire removed from cart."})
-
-
+    
 class PaymentView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -306,10 +343,12 @@ class PaymentView(APIView):
         if not cart.prestataires.exists():
             return Response({"error": "Cart is empty. Cannot proceed with payment."}, status=status.HTTP_400_BAD_REQUEST)
 
-        total_price = cart.total_price()
+        # Utiliser le total_price de la cart
+        total_price = cart.total_price
 
         # Simulation de paiement
         with transaction.atomic():
+            # Créer le paiement
             payment = Payment.objects.create(
                 user=request.user,
                 cart=cart,
@@ -317,9 +356,12 @@ class PaymentView(APIView):
                 method=method,
                 success=True  # Simulation d'un paiement réussi
             )
-            # Vider le panier après paiement réussi
-            cart.prestataires.clear()
 
+            # Réinitialiser le panier après paiement réussi
+            cart.prestataires.clear()  # Vider le panier
+            cart.reset_total_price()  # Réinitialiser le total_price à 0 après paiement
+
+        # Réponse avec le paiement
         serializer = PaymentSerializer(payment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 

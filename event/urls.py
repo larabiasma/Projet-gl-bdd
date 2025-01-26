@@ -1,19 +1,19 @@
 
 from django.urls import path , include
-from .views import RegisterView , LoginView , UserView , LogoutView , HelloWorldView ,ProfileView, UpdateProfileView,  EventView, EventPhotoView,AvailabilityView , CartView , RatingView , PaymentView , ChecklistItemManageView , CreateDevisRequestView, NotificationListView , MarkNotificationAsReadView , RespondToDevisRequestView
+from .views import RegisterView , LoginView , UserView , LogoutView , ProfileView, UpdateProfileView,  EventView, EventPhotoView,AvailabilityView , CartView , RatingView , PaymentView , ChecklistItemManageView , CreateDevisRequestView, NotificationListView , MarkNotificationAsReadView , RespondToDevisRequestView , EventReservationView
 
 urlpatterns = [
     path('register/', RegisterView.as_view()),
     path('login/', LoginView.as_view()),
     path('user/', UserView.as_view()),
     path('logout/', LogoutView.as_view()),
-    path('helloworld/', HelloWorldView.as_view()),
-    path('profile/', ProfileView.as_view(), name='profile'),
+    path('profile/service/<str:service>/', ProfileView.as_view(), name='profile_by_service'),
     path('profile/update/', UpdateProfileView.as_view(), name='update_profile'),
     path('events/', EventView.as_view(), name='event_list_create'),
     path('events/<int:event_id>', EventView.as_view(), name='event-detail'),
     path('events/<int:event_id>/photos/', EventPhotoView.as_view(), name='event_photos'),
     path('availability/', AvailabilityView.as_view(), name='availability'),
+    path('reservations/', EventReservationView.as_view(), name='reservation'),
     path('cart/', CartView.as_view(), name='cart'),
     path('rating/<int:event_id>', RatingView.as_view(), name='rating'),
     path('cart/payment/', PaymentView.as_view(), name='cart_payment'),
