@@ -63,7 +63,9 @@ class LoginView(APIView):
             'jwt': token
         }
         return response
-class ProfileView(APIView):
+    
+# afficher d'apres les categories    
+class ProfileserviceView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
@@ -87,6 +89,8 @@ class ProfileView(APIView):
         return Response({
             'prestataires': prestataire_serializer.data
         })   
+    
+
 class UserView(APIView):   
     def get(self,request):
         token = request.COOKIES.get('jwt')
@@ -111,7 +115,7 @@ class LogoutView(APIView):
         }
         return response
 
-# afficher d'apres les categories
+
 class ProfileView(APIView):
     permission_classes = [AllowAny]
 

@@ -1,13 +1,14 @@
 
 from django.urls import path , include
-from .views import RegisterView , LoginView , UserView , LogoutView , ProfileView, UpdateProfileView,  EventView, EventPhotoView,AvailabilityView , CartView , RatingView , PaymentView , ChecklistItemManageView , CreateDevisRequestView, NotificationListView , MarkNotificationAsReadView , RespondToDevisRequestView , EventReservationView
+from .views import RegisterView , LoginView , UserView , ProfileserviceView,LogoutView , ProfileView, UpdateProfileView,  EventView, EventPhotoView,AvailabilityView , CartView , RatingView , PaymentView , ChecklistItemManageView , CreateDevisRequestView, NotificationListView , MarkNotificationAsReadView , RespondToDevisRequestView , EventReservationView
 
 urlpatterns = [
     path('register/', RegisterView.as_view()),
     path('login/', LoginView.as_view()),
     path('user/', UserView.as_view()),
     path('logout/', LogoutView.as_view()),
-    path('profile/service/<str:service>/', ProfileView.as_view(), name='profile_by_service'),
+    path('profile/', ProfileView.as_view(), name='profile_by_service'),
+    path('profile/service/<str:service>/', ProfileserviceView.as_view(), name='profile_by_service'),
     path('profile/update/', UpdateProfileView.as_view(), name='update_profile'),
     path('events/', EventView.as_view(), name='event_list_create'),
     path('events/<int:event_id>', EventView.as_view(), name='event-detail'),
